@@ -1,0 +1,267 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/87019e51a6.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Cure19 - Game Engine</title>
+</head>
+<body style="background-color: #02171C; color: white"> 
+
+    <div class="container">
+        <div class="row mt-5">
+            <div class="col">
+                <h1 class="mb-0">CURE<span class="text-primary">19</span></h1>
+                <h3>Game Engine <span class="text-primary">Presentation</span></h3>
+            </div>
+        </div>
+        <div class="row mt-5">
+            <div class="col-6">
+                <canvas id="myChart" width="100" height="100"></canvas>
+            </div>
+            <div class="col-3">
+                <h5 class="mb-3">Game Logs</h5>
+                <div class="log p-3">
+                    <log></log>
+                </div>
+            </div>
+            <div class="col-3">
+                <h5 class="mb-3">Game Parameters</h5>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Population</td>
+                            <td id="population"></td>
+                        </tr>
+                        <tr>
+                            <td>Mortality Rate</td>
+                            <td id="mortality"></td>
+                        </tr>
+                        <tr>
+                            <td>Cases</td>
+                            <td id="cases"></td>
+                        </tr>
+                        <tr>
+                            <td>Dead</td>
+                            <td id="dead"></td>
+                        </tr>
+                        <tr>
+                            <td>Recovered</td>
+                            <td id="recovered"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h5 class="my-3">Policies</h5>
+
+                <div class="form-group">
+                    <input type="range" class="form-control-range" id="policies-1" min=".11" max=".2" step=".01" value=".16">
+                    <p id="policies-value"></p>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-5">
+
+            <div class="col-4">
+                <p class="d-inline-block mr-3">Start/Stop the Engine: </p>
+                <button class="btn btn-cure" id="action-button-stop"><i class="fas fa-play"></i></button>
+            </div>
+
+        </div>
+    </div>
+    
+</body>
+</html>
+
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.js"></script>
+<!-- <script src="chartconfig.js"></script> -->
+<script>
+    let app = document.querySelector('app');
+
+    let play = false;
+
+    let population = 38000000;
+    let mortalityRate = 0.02;
+    let round = 0;
+
+    let recovered = 0;
+    let dead = 0;
+    let cases = 0;
+
+    let results = [];
+    let days = [];
+    let deads = [];
+    let recoveries = [];
+
+    let policies = [.16, .16, .16, .16, .16, .16, .16, .16, .16, .16];
+    let naturalSpread = function(value) { return ((-0.209) * Math.log(Math.log10(value)) + 1.48); }
+    let policiesSpread = function() { 
+        let sum = 0;
+        policies.forEach(num => {
+            sum += num;
+        });
+        return sum;
+    }
+
+    let wprim = function(value) {
+        if(naturalSpread(value) < policiesSpread()) {
+            return (1 / 2) * naturalSpread(value) + (1 / 2) * policiesSpread();
+        } else {
+            return (1 / 2) * policiesSpread() + (1 / 2) * policiesSpread();
+        }
+    }
+    let w = function(population, cases) {
+        return Math.pow(((population - cases) / population), 2.3) * (wprim(cases) - 1) + 1;
+    }
+
+    let kill = function(results, round, mortalityRate) {
+        dead =  Math.ceil(results[round - 7] * mortalityRate);
+    }
+    let recover = function(results, round, mortalityRate) {
+        recovered =  Math.ceil(results[round - 7] * (1 - mortalityRate));
+    }
+
+    let updatePolicies = function() {
+        policies[0] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[1] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[2] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[3] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[4] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[5] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[6] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[7] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[8] = parseFloat(document.querySelector('#policies-1').value, 10);
+        policies[9] = parseFloat(document.querySelector('#policies-1').value, 10);
+
+        document.querySelector('#policies-value').innerHTML = document.querySelector('#policies-1').value;
+    }
+
+    // Engine
+    let engine = function() {
+        // Update functions
+        updatePolicies();
+        
+        // Run random generator for first 10 cases then go with algorythm
+        if (cases < 10) {
+            cases += Math.floor(Math.random() * 3) + 1;
+        } else if (cases >= 10 && cases < population) {
+            cases = Math.floor(cases * w(population, cases));
+        } else if (cases >= population) {
+            cases = population;
+        }
+
+        // Check if cases exceeded population
+        if(cases >= population - dead) {
+            cases = (population - dead);
+            stopInterval();
+        } else if (cases <= 0) {
+            cases = 0;
+            stopInterval();
+        }
+
+        // Start killing ppl
+        if(round >= 7) {
+            kill(results, round, mortalityRate);
+            recover(results, round, mortalityRate);
+        }
+
+        // End of each round
+        results.push(cases);
+        days.push(round);
+        deads.push(dead);
+        recoveries.push(recovered);
+
+        // Engine Log
+        let temp = document.querySelector('log').innerHTML;
+        document.querySelector('log').innerHTML = `day: ${round}, cases: ${cases.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,")}<br>`;
+        document.querySelector('log').innerHTML += temp;
+
+        // Fill Table
+        document.querySelector('#dead').innerHTML = dead.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+        document.querySelector('#recovered').innerHTML = recovered.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+        document.querySelector('#cases').innerHTML = cases.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+
+        drawChart(days, results, deads, recoveries);
+        round++;
+    }
+
+    // let tick = setInterval(engine, 1000);
+
+    let stopInterval = function() {
+        clearInterval(tick);
+    }
+
+    // Additional
+    document.querySelector('#action-button-stop').addEventListener('click', () => {
+        if(play) {
+            stopInterval();
+            document.querySelector('#action-button-stop').innerHTML = '<i class="fas fa-play"></i>';
+            play = false;
+        } else {
+            tick = setInterval(engine, 1000);
+            document.querySelector('#action-button-stop').innerHTML = '<i class="fas fa-pause"></i>';
+            play = true;
+        }
+
+    });
+
+    // Graphic Functions - fill table with data
+    let enterGameParams = function() {
+        document.querySelector('#population').innerHTML = population.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+        document.querySelector('#mortality').innerHTML = mortalityRate;
+    }
+    enterGameParams();
+
+    // Graphic Functions - re-draw chart with update info
+    let drawChart = function(days, results, deads, recoveries) {
+        var ctx = document.getElementById('myChart').getContext('2d');
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: days,
+                datasets: [{
+                    label: '# of infected',
+                    data: results,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '# of dead',
+                    data: deads,
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '# of recovered',
+                    data: recoveries,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }]
+                }
+            }
+        });
+    }
+
+</script>
